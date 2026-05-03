@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exercise 5 – Multi-Chart Page</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #333; }
+    nav { background: #1a1a2e; padding: 12px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    nav a { color: #e0e0e0; text-decoration: none; font-size: 14px; padding: 6px 12px; border-radius: 4px; }
+    nav a:hover, nav a.active { background: #4a90d9; color: white; }
+    nav .title { color: white; font-weight: bold; margin-right: 16px; }
+    main { max-width: 1100px; margin: 40px auto; padding: 0 24px; }
+    h1 { font-size: 28px; margin-bottom: 8px; color: #1a1a2e; }
+    p.desc { color: #666; margin-bottom: 32px; line-height: 1.6; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .chart-card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .chart-card.wide { grid-column: 1 / -1; }
+    .chart-title { font-size: 16px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px; }
+    .chart-subtitle { font-size: 12px; color: #888; margin-bottom: 16px; }
+    .axis text { font-size: 11px; fill: #555; }
+    .axis path, .axis line { stroke: #ccc; }
+    .axis-label { font-size: 12px; fill: #555; }
+    .dot { cursor: pointer; }
+    .dot:hover { stroke-width: 2.5; stroke: #333; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #555; }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .chart-card.wide { grid-column: 1; } }
+  </style>
+</head>
+<body>
+  <nav>
+    <span class="title">COS30045</span>
+    <a href="../index.html">Home</a>
+    <a href="../ex4/index.html">Ex 4.1 SVG House</a>
+    <a href="../ex4/bar.html">Ex 4.3–4.6 Bar Chart</a>
+    <a href="index.html" class="active">Ex 5 Multi-chart</a>
+    <a href="../ex6/index.html">Ex 6 Interactivity</a>
+  </nav>
+  <main>
+    <h1>Exercise 5 – Multi-Chart Page</h1>
+    <p class="desc">
+      Three chart types built with D3: a <strong>vertical bar chart</strong> (average energy by brand),
+      a <strong>scatter plot with line</strong> (screen size vs energy), and a <strong>donut chart</strong>
+      (share of TVs by screen tech). All use D3 scales, axes, and data binding.
+    </p>
+    <div class="grid">
+      <!-- BAR CHART -->
+      <div class="chart-card wide">
+        <div class="chart-title">5.1 Vertical Bar Chart – Average Energy Consumption by Brand</div>
+        <div class="chart-subtitle">Linear scale (y) · Band scale (x) · Axes and labels</div>
+        <div id="bar-chart"></div>
+      </div>
+      <!-- SCATTER + LINE -->
+      <div class="chart-card">
+        <div class="chart-title">5.2 Scatter Plot – Screen Size vs Energy Consumption</div>
+        <div class="chart-subtitle">Linear scale (x &amp; y) · Coloured by screen technology</div>
+        <div id="scatter-chart"></div>
+        <div class="legend" id="scatter-legend"></div>
+      </div>
+      <!-- DONUT -->
+      <div class="chart-card">
+        <div class="chart-title">5.3 Donut Chart – TV Count by Screen Technology</div>
+        <div class="chart-subtitle">d3.pie() · d3.arc() · Ordinal colour scale</div>
+        <div id="donut-chart"></div>
+        <div class="legend" id="donut-legend"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script>
+    // ── DATA ──────────────────────────────────────────────────────────────────
+    const csvText = `brand,model,screenSize,screenTech,star,energyConsumption
+samsung,QA55QN90DAWXXY,55,QLED,3,258
+samsung,QA65QN90DAWXXY,65,QLED,2.5,380
+samsung,UA65AU8000WXXY,65,LED,3.5,421
+samsung,QA55Q80DAWXXY,55,QLED,3.5,212
+samsung,UA55AU7000WXXY,55,LED,4,198
+samsung,QA75Q70DAWXXY,75,QLED,2.5,490
+lg,OLED55C4PSA,55,OLED,3.5,141
+lg,OLED65C4PSA,65,OLED,3,195
+lg,OLED77C4PSA,77,OLED,2.5,290
+lg,50UR78006LK,50,LED,4,155
+lg,65UR78006LK,65,LED,3.5,260
+lg,55QNED85T6A,55,QLED,3.5,195
+sony,XR55X90L,55,LED,3,202
+sony,KD55X85L,55,LED,3.5,215
+sony,XR65A80L,65,OLED,3,225
+sony,KD65X85L,65,LED,3,280
+sony,XR75X95L,75,LED,2.5,430
+philips,58BFL2114/12,58,LED,5.5,322
+philips,55HFL6114U/12,55,LED,5,319
+philips,65OLED808/79,65,OLED,3,210
+philips,75PUS8818/12,75,LED,2.5,395
+hisense,75U80G,75,LED,2.5,1060
+hisense,55U8K,55,QLED,4,218
+hisense,65A7H,65,LED,3.5,288
+hisense,43A6H,43,LED,4,130
+tcl,75C935,75,QLED,2,680
+tcl,65C635,65,LED,3,269
+tcl,55C635,55,LED,3.5,210
+tcl,43C635,43,LED,3.5,138
+jvc,AV-H323115A,32,LED,5,130
+jvc,AV-H553115A,55,LED,4,165
+jvc,AV-H653115A,65,LED,3.5,278`;
+
+    const data = d3.csvParse(csvText, d => ({
+      brand:             d.brand,
+      model:             d.model,
+      screenSize:        +d.screenSize,
+      screenTech:        d.screenTech,
+      star:              +d.star,
+      energyConsumption: +d.energyConsumption
+    }));
+
+    const techColour = d3.scaleOrdinal()
+      .domain(["LED", "QLED", "OLED"])
+      .range(["#4a90d9", "#e67e22", "#9b59b6"]);
+
+    // ── 5.1 BAR CHART ────────────────────────────────────────────────────────
+    (function() {
+      const container = document.getElementById("bar-chart");
+      const totalW = container.clientWidth || 860;
+      const margin = { top: 20, right: 20, bottom: 70, left: 65 };
+      const w = totalW - margin.left - margin.right;
+      const h = 280 - margin.top - margin.bottom;
+
+      const svg = d3.select("#bar-chart").append("svg")
+        .attr("viewBox", `0 0 ${totalW} 280`)
+        .attr("width", "100%")
+        .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+      // Aggregate: mean energy per brand
+      const brandData = Array.from(
+        d3.rollup(data, v => d3.mean(v, d => d.energyConsumption), d => d.brand),
+        ([brand, mean]) => ({ brand, mean: +mean.toFixed(1) })
+      ).sort((a, b) => b.mean - a.mean);
+
+      const x = d3.scaleBand().domain(brandData.map(d => d.brand)).range([0, w]).padding(0.3);
+      const y = d3.scaleLinear().domain([0, d3.max(brandData, d => d.mean) * 1.2]).nice().range([h, 0]);
+
+      svg.append("g").attr("class","axis").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x))
+        .selectAll("text").attr("transform","rotate(-30)").attr("text-anchor","end").style("font-size","11px");
+      svg.append("g").attr("class","axis").call(d3.axisLeft(y).ticks(5));
+
+      svg.append("text").attr("class","axis-label").attr("x", w/2).attr("y", h+65).attr("text-anchor","middle").text("Brand");
+      svg.append("text").attr("class","axis-label").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-52).attr("text-anchor","middle").text("Avg Energy (kWh/yr)");
+
+      svg.selectAll("rect").data(brandData).join("rect")
+        .attr("x", d => x(d.brand))
+        .attr("y", d => y(d.mean))
+        .attr("width", x.bandwidth())
+        .attr("height", d => h - y(d.mean))
+        .attr("fill", "#4a90d9").attr("rx", 3);
+
+      svg.selectAll(".val").data(brandData).join("text")
+        .attr("class","val")
+        .attr("x", d => x(d.brand) + x.bandwidth()/2)
+        .attr("y", d => y(d.mean) - 5)
+        .attr("text-anchor","middle").style("font-size","10px").style("fill","#333")
+        .text(d => d.mean);
+    })();
+
+    // ── 5.2 SCATTER PLOT ─────────────────────────────────────────────────────
+    (function() {
+      const container = document.getElementById("scatter-chart");
+      const totalW = container.clientWidth || 440;
+      const margin = { top: 20, right: 20, bottom: 60, left: 65 };
+      const w = totalW - margin.left - margin.right;
+      const h = 300 - margin.top - margin.bottom;
+
+      const svg = d3.select("#scatter-chart").append("svg")
+        .attr("viewBox", `0 0 ${totalW} 300`)
+        .attr("width","100%")
+        .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const x = d3.scaleLinear().domain([d3.min(data,d=>d.screenSize)-2, d3.max(data,d=>d.screenSize)+2]).range([0,w]);
+      const y = d3.scaleLinear().domain([0, d3.max(data,d=>d.energyConsumption)*1.1]).nice().range([h,0]);
+
+      svg.append("g").attr("class","axis").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).ticks(6));
+      svg.append("g").attr("class","axis").call(d3.axisLeft(y).ticks(5));
+      svg.append("text").attr("class","axis-label").attr("x",w/2).attr("y",h+48).attr("text-anchor","middle").text('Screen Size (inches)');
+      svg.append("text").attr("class","axis-label").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-52).attr("text-anchor","middle").text("Energy (kWh/yr)");
+
+      // Trend line per tech
+      const techs = ["LED","QLED","OLED"];
+      techs.forEach(tech => {
+        const techData = data.filter(d => d.screenTech === tech).sort((a,b) => a.screenSize - b.screenSize);
+        if (techData.length < 2) return;
+        const line = d3.line().x(d => x(d.screenSize)).y(d => y(d.energyConsumption));
+        svg.append("path").datum(techData).attr("fill","none")
+          .attr("stroke", techColour(tech)).attr("stroke-width",1.5).attr("stroke-dasharray","4,3").attr("opacity",0.5)
+          .attr("d", line);
+      });
+
+      // Dots
+      svg.selectAll(".dot").data(data).join("circle")
+        .attr("class","dot")
+        .attr("cx", d => x(d.screenSize))
+        .attr("cy", d => y(d.energyConsumption))
+        .attr("r", 5)
+        .attr("fill", d => techColour(d.screenTech))
+        .attr("opacity", 0.8);
+
+      // Legend
+      const legend = document.getElementById("scatter-legend");
+      techs.forEach(tech => {
+        legend.innerHTML += `<div class="legend-item"><div class="legend-swatch" style="background:${techColour(tech)}"></div>${tech}</div>`;
+      });
+    })();
+
+    // ── 5.3 DONUT CHART ──────────────────────────────────────────────────────
+    (function() {
+      const container = document.getElementById("donut-chart");
+      const totalW = container.clientWidth || 440;
+      const size = Math.min(totalW, 300);
+      const r = size / 2 - 20;
+
+      const svg = d3.select("#donut-chart").append("svg")
+        .attr("viewBox", `0 0 ${size} ${size}`)
+        .attr("width","100%")
+        .append("g").attr("transform", `translate(${size/2},${size/2})`);
+
+      const counts = d3.rollup(data, v => v.length, d => d.screenTech);
+      const pieData = Array.from(counts, ([tech, count]) => ({ tech, count }));
+
+      const pie = d3.pie().value(d => d.count).sort(null);
+      const arc = d3.arc().innerRadius(r * 0.55).outerRadius(r);
+      const arcHover = d3.arc().innerRadius(r * 0.55).outerRadius(r + 8);
+      const labelArc = d3.arc().innerRadius(r * 0.75).outerRadius(r * 0.75);
+
+      const slices = svg.selectAll("path").data(pie(pieData)).join("path")
+        .attr("d", arc)
+        .attr("fill", d => techColour(d.data.tech))
+        .attr("stroke","white").attr("stroke-width",2)
+        .style("cursor","pointer")
+        .on("mouseover", function(event, d) { d3.select(this).attr("d", arcHover); })
+        .on("mouseout",  function(event, d) { d3.select(this).attr("d", arc); });
+
+      // Labels
+      svg.selectAll(".pie-label").data(pie(pieData)).join("text")
+        .attr("class","pie-label")
+        .attr("transform", d => `translate(${labelArc.centroid(d)})`)
+        .attr("text-anchor","middle")
+        .style("font-size","11px").style("fill","white").style("font-weight","600")
+        .text(d => d.data.count);
+
+      // Centre label
+      svg.append("text").attr("text-anchor","middle").attr("dy","0.35em")
+        .style("font-size","13px").style("fill","#555").style("font-weight","600")
+        .text("TVs");
+
+      // Legend
+      const legend = document.getElementById("donut-legend");
+      const total = d3.sum(pieData, d => d.count);
+      pieData.forEach(d => {
+        const pct = ((d.count / total) * 100).toFixed(1);
+        legend.innerHTML += `<div class="legend-item"><div class="legend-swatch" style="background:${techColour(d.tech)}"></div>${d.tech} (${pct}%)</div>`;
+      });
+    })();
+  </script>
+</body>
+</html>
